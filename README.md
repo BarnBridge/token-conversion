@@ -1,21 +1,6 @@
 # Token Conversion 💱
 
-A simple contract that allows for the conversion of one token to a stream of another token at fixed conversion terms. Specifically, the conversion terms include the following:
-- Conversion price
-- Stream duration
-- Expiration of the conversion program
-
-Note that the implementation assumes that both tokens (in and out) use the same precision.
-
-## Requirements
-
-**Important:** The implementation makes specific assumptions about `tokenIn` and `tokenOut` tokens which translate to strict requirements about the token pair for which the conversion contract is deployed. 
-
-Specifically, these requirements are:
-- 18 decimals precision for both tokens (strictly speaking, the requirement is that both tokens use the same precision but deploying the contract with low-decimal precision tokens may result in the loss of funds)
-- Safe ERC20 implementation (specifically, `transfer` and `burn` need to revert if unsuccessful)
-
-Note that the former requirement is enforced in the conversion contract's constructor but the latter is not. Hence, always make sure the desired token pair adheres to these requirements.
+Contract implements the terms of the FDT -> BOND conversion as outlined [here](https://forum.barnbridge.com/t/combine-fiat-dao-into-barnbridge/807) and ratified in a BarnBridge governance vote. 
 
 ## Installation
 This repository uses Foundry for building and testing and Solhint for formatting the contracts.
