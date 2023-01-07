@@ -134,6 +134,9 @@ contract TokenConversion is Ownable {
         external
         returns (uint256 claimed)
     {
+        // don't claim to zero address
+        if (recipient == address(0)) revert Invalid_Recipient();
+
         Stream memory stream = streams[streamId];
         (address streamOwner, uint64 startTime) = decodeStreamId(streamId);
 
@@ -165,13 +168,16 @@ contract TokenConversion is Ownable {
 
     /// Transfers stream to a new owner
     /// @param streamId The encoded identifier of the stream to transfer to a new owner
-    /// @param newOwner The new owner of the stream
+    /// @param recipient The new owner of the stream
     /// @return newStreamId New identifier of the stream [newOwner, startTime]
     /// @dev Reverts if not called by the stream's `owner`
-    function transferStreamOwnership(uint256 streamId, address newOwner)
+    function transferStreamOwnership(uint256 streamId, address recipient)
         external
         returns (uint256 newStreamId)
     {
+        // don't transfer stream to zero address
+        if (recipient == address(0)) revert Invalid_Recipient();
+
         Stream memory stream = streams[streamId];
         (address owner, uint64 startTime) = decodeStreamId(streamId);
 
@@ -179,7 +185,7 @@ contract TokenConversion is Ownable {
         if (owner != msg.sender) revert Only_Stream_Owner();
 
         // store stream with new streamId or add to existing stream
-        newStreamId = encodeStreamId(newOwner, startTime);
+        newStreamId = encodeStreamId(recipient, startTime);
 
         Stream memory newStream = streams[newStreamId];
         newStream.total += stream.total;
