@@ -9,6 +9,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 // Errors
 error Conversion_Expired();
 error Only_Stream_Owner();
+error Invalid_Stream_Owner();
 error Invalid_Recipient();
 error Invalid_Stream_StartTime();
 error Invalid_Token_Decimals();
@@ -19,19 +20,19 @@ interface IERC20Burnable is IERC20 {
 }
 
 /// Converts a token to another token where the conversion price is fixed and the output token is streamed to the
-/// recipient over a fixed duration.
+/// owner over a fixed duration.
 contract TokenConversion is Ownable {
     // Constants
     address public immutable tokenIn; // the token to deposit
     address public immutable tokenOut; // the token to stream
-    uint256 public immutable rate; // the amount of tokenIn that converts to 1 WAD of tokenOut
+    uint256 public immutable rate; // tokenIn (in tokenIn precision) that converts to 1 tokenOut (in tokenOut precision)
     uint256 public immutable duration; // the vesting duration
     uint256 public immutable expiration; // expiration of the conversion program
 
     // Structs
     struct Stream {
-        uint128 total;
-        uint128 claimed;
+        uint128 total; // expressed in tokenOut precision
+        uint128 claimed; // expressed in tokenOut precision
     }
 
     // Storage vars
@@ -42,7 +43,7 @@ contract TokenConversion is Ownable {
     event Convert(
         uint256 indexed streamId,
         address indexed sender,
-        address indexed recipient,
+        address indexed owner,
         uint256 amountIn,
         uint256 amountOut
     );
@@ -83,11 +84,11 @@ contract TokenConversion is Ownable {
     }
 
     /// Burns `amount` of tokenIn tokens and creates a new stream of tokenOut
-    /// tokens claimable by `recipient` over one year
-    /// @param amount The amount of in-tokens to convert
-    /// @param recipient The recipient of the stream of out-tokens
+    /// tokens claimable by `owner` over the stream `duration`
+    /// @param amount The amount of tokenIn to convert (in tokenIn precision)
+    /// @param owner The owner of the new stream
     /// @return streamId Encoded identifier of the stream [owner, startTime]
-    function convert(uint256 amount, address recipient)
+    function convert(uint256 amount, address owner)
         external
         returns (uint256 streamId)
     {
@@ -95,14 +96,14 @@ contract TokenConversion is Ownable {
         if (block.timestamp > expiration) revert Conversion_Expired();
 
         // don't convert to zero address
-        if (recipient == address(0)) revert Invalid_Recipient();
+        if (owner == address(0)) revert Invalid_Stream_Owner();
 
         // compute stream amount
-        // all amounts are in WAD precision
+        // rate converts from tokenIn precision to tokenOut precision
         uint256 amountOut = amount / rate;
 
         // create new stream or add to existing stream created in same block
-        streamId = encodeStreamId(recipient, uint64(block.timestamp));
+        streamId = encodeStreamId(owner, uint64(block.timestamp));
         Stream storage stream = streams[streamId];
         // this is safe bc tokenOut totalSupply is only 10**7
         stream.total = uint128(amountOut + stream.total);
@@ -110,7 +111,7 @@ contract TokenConversion is Ownable {
         // burn deposited tokens
         // reverts if insufficient allowance or balance
         IERC20Burnable(tokenIn).burnFrom(msg.sender, amount);
-        emit Convert(streamId, msg.sender, recipient, amount, amountOut);
+        emit Convert(streamId, msg.sender, owner, amount, amountOut);
     }
 
     /// Withdraws claimable tokenOut tokens to the stream's `owner`
@@ -168,24 +169,24 @@ contract TokenConversion is Ownable {
 
     /// Transfers stream to a new owner
     /// @param streamId The encoded identifier of the stream to transfer to a new owner
-    /// @param recipient The new owner of the stream
+    /// @param owner The new owner of the stream
     /// @return newStreamId New identifier of the stream [newOwner, startTime]
     /// @dev Reverts if not called by the stream's `owner`
-    function transferStreamOwnership(uint256 streamId, address recipient)
+    function transferStreamOwnership(uint256 streamId, address owner)
         external
         returns (uint256 newStreamId)
     {
         // don't transfer stream to zero address
-        if (recipient == address(0)) revert Invalid_Recipient();
+        if (owner == address(0)) revert Invalid_Stream_Owner();
 
         Stream memory stream = streams[streamId];
-        (address owner, uint64 startTime) = decodeStreamId(streamId);
+        (address currentOwner, uint64 startTime) = decodeStreamId(streamId);
 
         // only stream owner is allowed to update ownership
-        if (owner != msg.sender) revert Only_Stream_Owner();
+        if (currentOwner != msg.sender) revert Only_Stream_Owner();
 
         // store stream with new streamId or add to existing stream
-        newStreamId = encodeStreamId(recipient, startTime);
+        newStreamId = encodeStreamId(owner, startTime);
 
         Stream memory newStream = streams[newStreamId];
         newStream.total += stream.total;

@@ -6,7 +6,7 @@ import "forge-std/console.sol";
 
 import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
 
-import {TokenConversion, Only_Stream_Owner, Invalid_Recipient} from "../TokenConversion.sol";
+import {TokenConversion, Only_Stream_Owner, Invalid_Recipient, Invalid_Stream_Owner} from "../TokenConversion.sol";
 
 contract TokenConversionTest is Test {
     TokenConversion private conversion;
@@ -72,7 +72,7 @@ contract TokenConversionTest is Test {
 
     function test_CannotConvertToZeroAddress() public {
         // fails to convert to zero address
-        vm.expectRevert(Invalid_Recipient.selector);
+        vm.expectRevert(Invalid_Stream_Owner.selector);
         conversion.convert(75000 ether, address(0));
     }
 
@@ -231,7 +231,7 @@ contract TokenConversionTest is Test {
         assertEq(streamOwner, address(this));
 
         // transfer stream to zero address fails
-        vm.expectRevert(Invalid_Recipient.selector);
+        vm.expectRevert(Invalid_Stream_Owner.selector);
         address newOwner = address(0);
         conversion.transferStreamOwnership(streamId, newOwner);
     }
