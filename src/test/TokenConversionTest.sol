@@ -6,7 +6,7 @@ import "forge-std/console.sol";
 
 import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
 
-import {TokenConversion, Only_Stream_Owner} from "../TokenConversion.sol";
+import {TokenConversion, Only_Stream_Owner, Invalid_Recipient, Invalid_Stream_Owner} from "../TokenConversion.sol";
 
 contract TokenConversionTest is Test {
     TokenConversion private conversion;
@@ -68,6 +68,12 @@ contract TokenConversionTest is Test {
 
         assertEq(total, 1 ether);
         assertEq(claimed, 0);
+    }
+
+    function test_CannotConvertToZeroAddress() public {
+        // fails to convert to zero address
+        vm.expectRevert(Invalid_Stream_Owner.selector);
+        conversion.convert(75000 ether, address(0));
     }
 
     function test_Claim() public {
@@ -182,6 +188,22 @@ contract TokenConversionTest is Test {
         conversion.claim(streamId);
     }
 
+    function test_CannotClaimToZeroAddress() public {
+        // 75000 FDT is converted to 100 BOND claimable over 1 year
+        uint256 streamId = conversion.convert(75000 ether, address(this));
+
+        // stream exists with correct balance
+        (uint128 total, uint128 claimed) = conversion.streams(streamId);
+        assertEq(total - claimed, 100 ether);
+
+        // move block.timestamp by 219 days (3/5-th of vesting duration)
+        skip(219 days);
+
+        // claiming to zero address fails
+        vm.expectRevert(Invalid_Recipient.selector);
+        conversion.claim(streamId, address(0));
+    }
+
     function test_TransferStreamOwnership() public {
         // 75000 FDT is converted to 100 BOND claimable over 1 year
         uint256 streamId = conversion.convert(75000 ether, address(this));
@@ -198,5 +220,19 @@ contract TokenConversionTest is Test {
         );
         (address newStreamOwner, ) = conversion.decodeStreamId(newStreamId);
         assertEq(newStreamOwner, newOwner);
+    }
+
+    function test_CannotTransferStreamOwnershipToZeroAddress() public {
+        // 75000 FDT is converted to 100 BOND claimable over 1 year
+        uint256 streamId = conversion.convert(75000 ether, address(this));
+
+        // test contract is the initial stream owner
+        (address streamOwner, ) = conversion.decodeStreamId(streamId);
+        assertEq(streamOwner, address(this));
+
+        // transfer stream to zero address fails
+        vm.expectRevert(Invalid_Stream_Owner.selector);
+        address newOwner = address(0);
+        conversion.transferStreamOwnership(streamId, newOwner);
     }
 }
