@@ -47,14 +47,17 @@ contract TokenConversion is Ownable {
         uint256 amountIn,
         uint256 amountOut
     );
-    event Withdraw(
+    event Claim(
         uint256 indexed streamId,
+        address indexed owner,
         address indexed recipient,
         uint256 amount
     );
     event UpdateStreamOwner(
         uint256 indexed streamId,
-        uint256 indexed newStreamId
+        address indexed owner,
+        address indexed newOwner,
+        uint256 newStreamId
     );
 
     /// Instantiates a new converter contract with an owner
@@ -164,7 +167,7 @@ contract TokenConversion is Ownable {
         // withdraw claimable amount
         // reverts if insufficient balance
         IERC20(tokenOut).transfer(recipient, claimed);
-        emit Withdraw(streamId, recipient, claimed);
+        emit Claim(streamId, streamOwner, recipient, claimed);
     }
 
     /// Transfers stream to a new owner
@@ -194,7 +197,7 @@ contract TokenConversion is Ownable {
         streams[newStreamId] = newStream;
 
         delete streams[streamId];
-        emit UpdateStreamOwner(streamId, newStreamId);
+        emit UpdateStreamOwner(streamId, currentOwner, owner, newStreamId);
     }
 
     // Owner methods
