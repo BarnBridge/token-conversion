@@ -7,8 +7,7 @@
 # Node
 node_modules
 
-# Dapptools
-out/
-
 # Foundry
+out/*
+!out/TokenConversion.sol
 cache/
