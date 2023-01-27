@@ -235,4 +235,18 @@ contract TokenConversionTest is Test {
         address newOwner = address(0);
         conversion.transferStreamOwnership(streamId, newOwner);
     }
+
+    function test_CannotTransferStreamOwnershipToCurrentOwner() public {
+        // 75000 FDT is converted to 100 BOND claimable over 1 year
+        uint256 streamId = conversion.convert(75000 ether, address(this));
+
+        // test contract is the initial stream owner
+        (address streamOwner, ) = conversion.decodeStreamId(streamId);
+        assertEq(streamOwner, address(this));
+
+        // transfer stream to zero address fails
+        vm.expectRevert(Invalid_Stream_Owner.selector);
+        address newOwner = address(this);
+        conversion.transferStreamOwnership(streamId, newOwner);
+    }
 }

@@ -188,6 +188,9 @@ contract TokenConversion is Ownable {
         // only stream owner is allowed to update ownership
         if (currentOwner != msg.sender) revert Only_Stream_Owner();
 
+        // don't transfer stream to currentOwner
+        if (owner == currentOwner) revert Invalid_Stream_Owner();
+
         // store stream with new streamId or add to existing stream
         newStreamId = encodeStreamId(owner, startTime);
 
