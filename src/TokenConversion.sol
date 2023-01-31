@@ -13,6 +13,7 @@ error Invalid_Stream_Owner();
 error Invalid_Recipient();
 error Invalid_Stream_StartTime();
 error Invalid_Token_Decimals();
+error Insufficient_Reserves();
 
 // Interfaces
 interface IERC20Burnable is IERC20 {
@@ -38,6 +39,8 @@ contract TokenConversion is Ownable {
     // Storage vars
     // Stream owner and startTime is encoded in streamId
     mapping(uint256 => Stream) public streams;
+    // Total unclaimed tokenOut
+    uint256 public totalUnclaimed;
 
     // Events
     event Convert(
@@ -105,6 +108,14 @@ contract TokenConversion is Ownable {
         // rate converts from tokenIn precision to tokenOut precision
         uint256 amountOut = amount / rate;
 
+        // do not convert if insufficient reserves
+        uint256 newTotalUnclaimed = totalUnclaimed + amountOut;
+        if (IERC20(tokenOut).balanceOf(address(this)) < newTotalUnclaimed)
+            revert Insufficient_Reserves();
+
+        // update total unclaimed tokenOut
+        totalUnclaimed = newTotalUnclaimed;
+
         // create new stream or add to existing stream created in same block
         streamId = encodeStreamId(owner, uint64(block.timestamp));
         Stream storage stream = streams[streamId];
@@ -163,6 +174,10 @@ contract TokenConversion is Ownable {
         claimed = _claimableBalance(stream, startTime);
         stream.claimed = uint128(stream.claimed + claimed);
         streams[streamId] = stream;
+
+        // update remaining total allocated tokenOut
+        // claimed <= stream.total and stream.total <= total
+        totalUnclaimed = totalUnclaimed - claimed;
 
         // withdraw claimable amount
         // reverts if insufficient balance
@@ -231,6 +246,7 @@ contract TokenConversion is Ownable {
     }
 
     // Implementation of claimableBalance query
+    // claimable <= stream.total and stream.total <= total so that claimable <= tokenOut.balanceOf(this)
     function _claimableBalance(Stream memory stream, uint64 startTime)
         private
         view
