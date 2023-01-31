@@ -6,7 +6,7 @@ import "forge-std/console.sol";
 
 import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
 
-import {TokenConversion, Only_Stream_Owner, Invalid_Recipient, Invalid_Stream_Owner} from "../TokenConversion.sol";
+import "../TokenConversion.sol";
 
 contract TokenConversionTest is Test {
     TokenConversion private conversion;
@@ -31,7 +31,7 @@ contract TokenConversionTest is Test {
         deal(address(bond), address(conversion), 1000 ether);
 
         // set up testing account with fdt
-        deal(address(fdt), address(this), 75000 ether);
+        deal(address(fdt), address(this), 10000000 ether);
         fdt.approve(address(conversion), type(uint256).max);
     }
 
@@ -74,6 +74,47 @@ contract TokenConversionTest is Test {
         // fails to convert to zero address
         vm.expectRevert(Invalid_Stream_Owner.selector);
         conversion.convert(75000 ether, address(0));
+    }
+
+    function test_CannotConvertIfInsufficientReserves() public {
+        // fails to convert an amount larger than available reserves (1000 BOND)
+        vm.expectRevert(Insufficient_Reserves.selector);
+        conversion.convert(750001 ether, address(this));
+
+        // can convert up to available reserves (1000 BOND)
+        uint256 streamId = conversion.convert(750000 ether, address(this));
+        (uint128 total, uint128 claimed) = conversion.streams(streamId);
+        assertEq(total - claimed, 1000 ether);
+
+        // cannot convert if no reserves left
+        vm.expectRevert(Insufficient_Reserves.selector);
+        conversion.convert(750 ether, address(this));
+
+        // can claim from stream
+        // move block.timestamp by 73 days (1/5-th of vesting duration)
+        skip(100 days);
+        conversion.claim(streamId);
+        (total, claimed) = conversion.streams(streamId);
+        assertLt(total - claimed, 1000 ether);
+
+        // can still not convert
+        vm.expectRevert(Insufficient_Reserves.selector);
+        conversion.convert(750 ether, address(this));
+
+        // fill up reserves of conversion contract
+        deal(
+            address(bond),
+            address(conversion),
+            bond.balanceOf(address(conversion)) + 1000 ether
+        );
+
+        // can convert again
+        console.log("%s", bond.balanceOf(address(conversion)));
+        console.log("%s", conversion.totalUnclaimed());
+        uint256 streamId2 = conversion.convert(750000 ether, address(this));
+        assertGt(streamId2, streamId); // assert new streamId
+        (uint128 total2, uint128 claimed2) = conversion.streams(streamId2);
+        assertEq(total2 - claimed2, 1000 ether);
     }
 
     function test_Claim() public {
